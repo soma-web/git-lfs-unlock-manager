@@ -77,8 +77,7 @@ jobs:
           retention-days: 30
 
       # -- Create GitHub Release (tag push only) -----------------------------
-      - name: Create GitHub Release
-        if: github.event_name == 'push'
+      - name: Create GitHub Release       
         uses: softprops/action-gh-release@v2
         with:
           name: "Git LFS Lock Manager v${{ steps.version.outputs.VERSION }}"
