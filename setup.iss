@@ -10,10 +10,13 @@
 ;    Or manually:
 ;    1. dotnet publish -c Release -r win-x64 --self-contained -o publish\
 ;    2. iscc setup.iss
+;       (or pass a version: iscc /DAppVersion=1.2.3 setup.iss)
 ; ============================================================
 
 #define AppName      "Git LFS Lock Manager"
-#define AppVersion   "1.0.0"
+#ifndef AppVersion
+  #define AppVersion   "1.0.0"
+#endif
 #define AppPublisher "Your Name"
 #define AppExeName   "GitLFSUnlocker.exe"
 #define PublishDir   "publish"

@@ -1,0 +1,89 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 1.2.3) - used when triggered manually'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # -- Resolve version ---------------------------------------------------
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Resolved version: $VERSION"
+
+      # -- Checkout ----------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -- .NET setup --------------------------------------------------------
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # -- Publish self-contained --------------------------------------------
+      - name: Publish (self-contained, win-x64)
+        run: |
+          dotnet publish GitLFSUnlocker.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -o publish\
+
+      # -- Install Inno Setup ------------------------------------------------
+      - name: Install Inno Setup 6
+        run: choco install innosetup --no-progress -y
+
+      # -- Build installer ---------------------------------------------------
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=$version `
+            setup.iss
+
+      # -- Rename artifact ---------------------------------------------------
+      - name: Rename artifact
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          Move-Item "dist\GitLFSLockManager-$version-Setup.exe" "dist\GitLFSLockManager-Setup.exe" -Force
+
+      # -- Upload artifact ---------------------------------------------------
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitLFSLockManager-${{ steps.version.outputs.VERSION }}-Setup
+          path: dist\GitLFSLockManager-Setup.exe
+          retention-days: 30
+
+      # -- Create GitHub Release (tag push only) -----------------------------
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Git LFS Lock Manager v${{ steps.version.outputs.VERSION }}"
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: dist\GitLFSLockManager-Setup.exe
